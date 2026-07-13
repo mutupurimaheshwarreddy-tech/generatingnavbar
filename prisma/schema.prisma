@@ -16,7 +16,7 @@ datasource db {
 model WebsiteData {
   id          Int     @id @default(autoincrement())
   row_number  Int
-  Website     String
+  Website     String  @unique // <--- Add @unique right here
   logoUrl     String  @default("")
   logoShape   String  @default("unknown")
   logoStatus  String  @default("pending")
