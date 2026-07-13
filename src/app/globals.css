@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+/* Figma Styles of your File */
+:root {
+  /* Colors */
+  --petocareframerwebsite-black: #000000;
+  --petocareframerwebsite-brown-rust: #a35c38;
+  --petocareframerwebsite-creole: #1e0c05;
+  --petocareframerwebsite-pearl-bush: #ece5de;
+  --petocareframerwebsite-scorpion: #625b5b;
+  --petocareframerwebsite-soapstone: #fffaf8;
+  --petocareframerwebsite-sycamore: #8c863a;
+  --petocareframerwebsite-white: #fdfdfd;
+  --petocareframerwebsite-white: transparent;
+  --petocareframerwebsite-white: #ffffff;
+  --petocareframerwebsite-white-02: rgba(255, 255, 255, 0);
+  --petocareframerwebsite-white-30: rgba(253, 253, 253, 0.3);
+  --petocareframerwebsite-white-linen: #faf3ec;
+  --petocareframerwebsite-white-linen-24: rgba(250, 243, 236, 0.24);
+
+  /* Fonts */
+  --petocareframerwebsite-geist-medium-font-family: Geist-Medium, sans-serif;
+  --petocareframerwebsite-geist-medium-font-size: 20px;
+  --petocareframerwebsite-geist-medium-line-height: 24px;
+  --petocareframerwebsite-geist-medium-font-weight: 500;
+  --petocareframerwebsite-geist-medium-font-style: normal;
+  --petocareframerwebsite-geist-medium-font-family: Geist-Medium, sans-serif;
+  --petocareframerwebsite-geist-medium-font-size: 24px;
+  --petocareframerwebsite-geist-medium-line-height: 32.64px;
+  --petocareframerwebsite-geist-medium-font-weight: 500;
+  --petocareframerwebsite-geist-medium-font-style: normal;
+  --petocareframerwebsite-geist-medium-font-family: Geist-Medium, sans-serif;
+  --petocareframerwebsite-geist-medium-font-size: 30px;
+  --petocareframerwebsite-geist-medium-line-height: 38.4px;
+  --petocareframerwebsite-geist-medium-font-weight: 500;
+  --petocareframerwebsite-geist-medium-font-style: normal;
+  --petocareframerwebsite-geist-medium-font-family: Geist-Medium, sans-serif;
+  --petocareframerwebsite-geist-medium-font-size: 48px;
+  --petocareframerwebsite-geist-medium-line-height: 57.6px;
+  --petocareframerwebsite-geist-medium-font-weight: 500;
+  --petocareframerwebsite-geist-medium-font-style: normal;
+  --petocareframerwebsite-geist-medium-font-family: Geist-Medium, sans-serif;
+  --petocareframerwebsite-geist-medium-font-size: 56px;
+  --petocareframerwebsite-geist-medium-line-height: 73.92px;
+  --petocareframerwebsite-geist-medium-font-weight: 500;
+  --petocareframerwebsite-geist-medium-font-style: normal;
+  --petocareframerwebsite-geist-medium-font-family: Geist-Medium, sans-serif;
+  --petocareframerwebsite-geist-medium-font-size: 30px;
+  --petocareframerwebsite-geist-medium-line-height: 38.4px;
+  --petocareframerwebsite-geist-medium-font-weight: 500;
+  --petocareframerwebsite-geist-medium-font-style: normal;
+  --petocareframerwebsite-geist-regular-font-family: Geist-Regular, sans-serif;
+  --petocareframerwebsite-geist-regular-font-size: 30px;
+  --petocareframerwebsite-geist-regular-line-height: 38.4px;
+  --petocareframerwebsite-geist-regular-font-weight: 400;
+  --petocareframerwebsite-geist-regular-font-style: normal;
+  --petocareframerwebsite-geist-regular-font-family: Geist-Regular, sans-serif;
+  --petocareframerwebsite-geist-regular-font-size: 80px;
+  --petocareframerwebsite-geist-regular-line-height: 88px;
+  --petocareframerwebsite-geist-regular-font-weight: 400;
+  --petocareframerwebsite-geist-regular-font-style: normal;
+  --petocareframerwebsite-inter-regular-font-family: Inter-Regular, sans-serif;
+  --petocareframerwebsite-inter-regular-font-size: 16px;
+  --petocareframerwebsite-inter-regular-line-height: 25.6px;
+  --petocareframerwebsite-inter-regular-font-weight: 400;
+  --petocareframerwebsite-inter-regular-font-style: normal;
+  --petocareframerwebsite-inter-regular-font-family: Inter-Regular, sans-serif;
+  --petocareframerwebsite-inter-regular-font-size: 18px;
+  --petocareframerwebsite-inter-regular-line-height: 28.8px;
+  --petocareframerwebsite-inter-regular-font-weight: 400;
+  --petocareframerwebsite-inter-regular-font-style: normal;
+  --petocareframerwebsite-inter-regular-underline-font-family: Inter-Regular,
+    sans-serif;
+  --petocareframerwebsite-inter-regular-underline-font-size: 16px;
+  --petocareframerwebsite-inter-regular-underline-line-height: 25.6px;
+  --petocareframerwebsite-inter-regular-underline-font-weight: 400;
+  --petocareframerwebsite-inter-regular-underline-font-style: normal;
+  --petocareframerwebsite-inter-medium-font-family: Inter-Medium, sans-serif;
+  --petocareframerwebsite-inter-medium-font-size: 16px;
+  --petocareframerwebsite-inter-medium-line-height: 25.6px;
+  --petocareframerwebsite-inter-medium-font-weight: 500;
+  --petocareframerwebsite-inter-medium-font-style: normal;
+  --petocareframerwebsite-inter-medium-font-family: Inter-Medium, sans-serif;
+  --petocareframerwebsite-inter-medium-font-size: 18px;
+  --petocareframerwebsite-inter-medium-line-height: 28.8px;
+  --petocareframerwebsite-inter-medium-font-weight: 500;
+  --petocareframerwebsite-inter-medium-font-style: normal;
+  --petocareframerwebsite-inter-regular-font-family: Inter-Regular, sans-serif;
+  --petocareframerwebsite-inter-regular-font-size: 14px;
+  --petocareframerwebsite-inter-regular-line-height: 20.72px;
+  --petocareframerwebsite-inter-regular-font-weight: 400;
+  --petocareframerwebsite-inter-regular-font-style: normal;
+  --petocareframerwebsite-inter-semi-bold-font-family: Inter-SemiBold,
+    sans-serif;
+  --petocareframerwebsite-inter-semi-bold-font-size: 18px;
+  --petocareframerwebsite-inter-semi-bold-line-height: 28.8px;
+  --petocareframerwebsite-inter-semi-bold-font-weight: 600;
+  --petocareframerwebsite-inter-semi-bold-font-style: normal;
+  --petocareframerwebsite-inter-medium-font-family: Inter-Medium, sans-serif;
+  --petocareframerwebsite-inter-medium-font-size: 14px;
+  --petocareframerwebsite-inter-medium-line-height: 20.72px;
+  --petocareframerwebsite-inter-medium-font-weight: 500;
+  --petocareframerwebsite-inter-medium-font-style: normal;
+
+  /* Effects */
+}
+/* Figma Color Variables of your File */
+:root,
+[data-petocareframerwebsite-mode="mode-1"] {
+  /* mode-1 */
+  --token-486077eb-4b6f-4c48-a3fc-86bf13baa551: #fdfdfd;
+  --token-46711b7d-1836-4a4d-b684-bee92af805c4: #fffaf8;
+  --token-894511ae-0274-4adf-8c78-b54376b8e733: #625b5b;
+  --token-85e170ef-7ada-43e5-9e49-8469ddeea725: #1e0c05;
+  --token-9500ff4c-c49e-404a-9019-856f6fe124bc: #a35c38;
+  --token-b76fc9c0-bf7b-4054-8183-4072d3aeaf8d: #8c863a;
+  --token-2f255f29-597c-4fd1-92ba-2444360bf0d5: #faf3ec;
+  --token-ab403325-82f2-4a9c-948d-12d7d051d522: #ece5de;
+  --token-8942d8cc-2734-4845-a330-95903ed447db: #625b5b;
+  --color-black-solid: #000000;
+  --color-white-solid: #ffffff;
+  --color-grey-95-24: rgba(250, 243, 236, 0.24);
+  --color-grey-95-10: rgba(250, 243, 236, 0.1);
+  --color-grey-99-30: rgba(253, 253, 253, 0.3);
+  --color-black-0: rgba(0, 0, 0, 0);
+  --color-white-02: rgba(255, 255, 255, 0);
+}
+
+
+
+@theme {
+  /* Define the custom animation */
+  --animate-slide-down-fade: slideDownFade 0.7s ease-out forwards;
+
+  /* Define the keyframes */
+  @keyframes slideDownFade {
+    0% {
+      opacity: 0;
+      transform: translateY(-2rem);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
