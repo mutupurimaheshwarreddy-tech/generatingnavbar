@@ -7,7 +7,7 @@ const globalForPrisma = globalThis as {
 };
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString:'postgresql://neondb_owner:npg_pF29AayuDPmh@ep-late-pine-aoss10wk-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
 });
 
 export const prisma =
