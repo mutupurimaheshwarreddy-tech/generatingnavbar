@@ -1,19 +1,15 @@
 'use server';
 
-import fs from 'fs/promises';
-import path from 'path';
 import * as cheerio from 'cheerio';
 import { v2 as cloudinary } from 'cloudinary';
-import { WebsiteData } from '@/types/logo';
+import { prisma } from '@/lib/prisma';
 
-// Configure Cloudinary with your credentials
 cloudinary.config({
   cloud_name: 'dyn40clci',
   api_key: '328476136325637',
   api_secret: 'a7MiQt_aMZfhuCe2891nUdgJDVs',
 });
 
-// Helper: Stream a node buffer into Cloudinary
 async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -25,17 +21,9 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<str
       },
       (error, result) => {
         if (error) return reject(error);
-        if (!result) return reject(new Error("Upload failed with no result"));
-
-        // Optimize URL with Cloudinary transformations:
-        // f_avif: Converts the output format to highly compressed AVIF automatically
-        // q_auto: Optimizes the compression quality without losing human-perceptible clarity
-        // e_make_transparent: Strips solid white backgrounds out for free (Optional)
-        const optimizedUrl = result.secure_url.replace(
-          '/upload/',
-          '/upload/f_avif,q_auto/'
-        );
+        if (!result) reject(new Error("Upload failed"));
         
+        const optimizedUrl = result!.secure_url.replace('/upload/', '/upload/f_avif,q_auto/');
         resolve(optimizedUrl);
       }
     );
@@ -47,7 +35,7 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
   try {
     const secureUrl = websiteUrl.replace('http://', 'https://');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout per site
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     const response = await fetch(secureUrl, {
       headers: {
@@ -66,15 +54,9 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
     let foundSrc = '';
 
     const selectors = [
-      'img[class*="logo" i]',
-      'img[id*="logo" i]',
-      'a[class*="logo" i] img',
-      'div[class*="logo" i] img',
-      'img[src*="logo" i]',
-      'img[alt*="logo" i]',
-      '.navbar-brand img',
-      'header img',
-      'a[href="/"] img'
+      'img[class*="logo" i]', 'img[id*="logo" i]', 'a[class*="logo" i] img',
+      'div[class*="logo" i] img', 'img[src*="logo" i]', 'img[alt*="logo" i]',
+      '.navbar-brand img', 'header img', 'a[href="/"] img'
     ];
 
     for (const selector of selectors) {
@@ -99,12 +81,8 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
     }
 
     if (!foundSrc) return null;
-
-    if (foundSrc.startsWith('//')) {
-      return `https:${foundSrc}`;
-    } else if (!foundSrc.startsWith('http')) {
-      return new URL(foundSrc, secureUrl).href;
-    }
+    if (foundSrc.startsWith('//')) return `https:${foundSrc}`;
+    if (!foundSrc.startsWith('http')) return new URL(foundSrc, secureUrl).href;
 
     return foundSrc;
   } catch (err) {
@@ -113,68 +91,67 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
 }
 
 export async function generateLogosAction() {
-  const jsonPath = path.join(process.cwd(), 'src', 'data', 'test.json');
-
   try {
-    const fileContent = await fs.readFile(jsonPath, 'utf-8');
-    const websites: WebsiteData[] = JSON.parse(fileContent);
+    // 1. Fetch only records that haven't been successfully processed yet
+    const websites = await prisma.websiteData.findMany({
+      where: {
+        logoStatus: { not: "success" }
+      },
+      orderBy: {
+        row_number: 'asc'
+      }
+    });
 
-    console.log(`Starting Cloudinary queue for ${websites.length} entries...`);
+    console.log(`Found ${websites.length} remaining websites to process in Neon DB.`);
 
     for (let i = 0; i < websites.length; i++) {
       const site = websites[i];
-      
-      websites[i] = {
-        ...site,
-        logoUrl: site.logoUrl || "",
-        logoShape: site.logoShape || "unknown",
-        logoStatus: site.logoStatus || "pending",
-        logoChecked: site.logoChecked || false,
-      };
-
-      if (websites[i].logoStatus === "success") {
-        continue; // Skip items already safely up on Cloudinary
-      }
-
-      console.log(`[${i + 1}/${websites.length}] Uploading logo for: ${site.Website}`);
+      console.log(`[${i + 1}/${websites.length}] Scraping: ${site.Website}`);
 
       try {
         const urlObj = new URL(site.Website);
-        const domain = urlObj.hostname.replace('www.', '').replace(/\./g, '_'); // Safe public_id string
+        const domain = urlObj.hostname.replace('www.', '').replace(/\./g, '_');
 
-        // 1. Find logo URL
         const directLogoUrl = await extractLogoUrlFromWebsite(site.Website);
         const finalDownloadUrl = directLogoUrl || `https://logo.clearbit.com/${urlObj.hostname}`;
 
-        // 2. Fetch image into Buffer memory
         const imageResponse = await fetch(finalDownloadUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (!imageResponse.ok) throw new Error('Failed to download image file');
+        if (!imageResponse.ok) throw new Error('Download failed');
         
         const arrayBuffer = await imageResponse.arrayBuffer();
         const imageBuffer = Buffer.from(arrayBuffer);
 
-        // 3. Push to Cloudinary
+        // Upload directly to Cloudinary
         const cloudinaryUrl = await uploadToCloudinary(imageBuffer, domain);
 
-        // 4. Save Cloudinary URL to JSON object
-        websites[i].logoUrl = cloudinaryUrl;
-        websites[i].logoStatus = "success";
-        websites[i].logoChecked = true;
+        // 2. Update the specific row inside your Neon Database instantly
+        await prisma.websiteData.update({
+          where: { id: site.id },
+          data: {
+            logoUrl: cloudinaryUrl,
+            logoStatus: "success",
+            logoChecked: true
+          }
+        });
 
       } catch (error) {
         console.error(`  -> [Failed] ${site.Website}`);
-        websites[i].logoStatus = "failed";
-        websites[i].logoChecked = true;
+        
+        // Mark as failed in the database so it's tracked
+        await prisma.websiteData.update({
+          where: { id: site.id },
+          data: {
+            logoStatus: "failed",
+            logoChecked: true
+          }
+        });
       }
 
-      // Safe progressive file writes
-      await fs.writeFile(jsonPath, JSON.stringify(websites, null, 2), 'utf-8');
-      
-      // Small break to protect rate limits
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Respect rate limits with a small rest period
+      await new Promise(resolve => setTimeout(resolve, 600));
     }
 
-    return { success: true, message: "Queue sync to Cloudinary finished." };
+    return { success: true, message: "Neon database updated successfully with all logos." };
   } catch (error: any) {
     console.error("Global Action Error:", error);
     return { success: false, message: error.message };
