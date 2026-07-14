@@ -1,79 +1,62 @@
 'use client';
 
 import { useState } from 'react';
-import { generateLogosAction } from '@/actions/processLogos';
 
 export default function Home() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const [status, setStatus] = useState<'idle' | 'running' | 'done'>('idle');
   const [message, setMessage] = useState('');
 
   const handleGenerate = async () => {
-    setIsRunning(true);
-    setMessage('Starting continuous extraction...');
-    let isDone = false;
+    setStatus('running');
+    setMessage('Starting background processor...');
 
     try {
-      // Continuously call the server in batches of 5 until the database says it's empty
-      while (!isDone) {
-        const result = await generateLogosAction();
-        
-        if (result.success) {
-          if (result.done) {
-            setMessage('All logos extracted successfully!');
-            setRemaining(0);
-            isDone = true;
-          } else {
-            // Update the UI with how many are left
-            setRemaining(result.remaining ?? null);
-            setMessage(`Processing... moving to next batch.`);
-          }
-        } else {
-          setMessage(`Error: ${result.message}`);
-          isDone = true; // Stop the loop if the server throws a critical error
-        }
+      const res = await fetch('/api/logo-worker', { method: 'POST' });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setMessage('Background process started! You can safely close this tab or leave the page. The server will handle the rest.');
+        setStatus('done');
+      } else {
+        setMessage(`Error: ${data.error}`);
+        setStatus('idle');
       }
     } catch (error) {
-      setMessage('Network error occurred. Process stopped.');
-    } finally {
-      setIsRunning(false);
+      setMessage('Network error occurred while starting the process.');
+      setStatus('idle');
     }
   };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50">
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center max-w-md w-full">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Logo Extractor</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Logo Extractor Engine</h1>
         <p className="text-gray-500 mb-8 text-sm">
-          Continuously extracts logos until the database is fully processed.
+          Fires a background worker on Vercel to extract, remove backgrounds, and compress logos seamlessly.
         </p>
         
         <button
           onClick={handleGenerate}
-          disabled={isRunning}
+          disabled={status === 'running'}
           className={`w-full py-3 px-4 rounded-lg font-medium text-white transition-all
-            ${isRunning 
+            ${status === 'running' 
               ? 'bg-blue-400 cursor-not-allowed' 
               : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98]'
             }`}
         >
-          {isRunning ? (
+          {status === 'running' ? (
             <span className="flex items-center justify-center gap-2">
-              <Spinner /> Processing Batch...
+              <Spinner /> Initiating Engine...
             </span>
           ) : (
-            'Generate All Logos'
+            'Start Background Extraction'
           )}
         </button>
 
-        {/* Status display below the button */}
         <div className="mt-6 min-h-[60px]">
           {message && (
-            <p className="text-sm font-medium text-gray-700">{message}</p>
-          )}
-          {remaining !== null && remaining > 0 && (
-            <p className="text-xl font-bold text-blue-600 mt-2">
-              {remaining} <span className="text-sm text-gray-500 font-normal">websites remaining</span>
+            <p className={`text-sm font-medium ${status === 'done' ? 'text-green-600' : 'text-gray-700'}`}>
+              {message}
             </p>
           )}
         </div>
