@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { generateLogosAction } from '@/actions/processLogos';
 
 export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
@@ -15,7 +14,9 @@ export default function Home() {
     
     while (!isDone) {
       try {
-        const result = await generateLogosAction();
+        // Calling the API route instead of a Server Action
+        const res = await fetch('/api/logo-worker', { method: 'POST' });
+        const result = await res.json();
         
         if (result.done) {
           setProgress({ remaining: '0', message: 'All websites processed successfully!' });
@@ -48,7 +49,7 @@ export default function Home() {
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center max-w-md w-full">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Logo Extractor</h1>
         <p className="text-gray-500 mb-8 text-sm">
-          Extract logos, remove backgrounds (AI), and update the database.
+          Extract logos, remove backgrounds (AI), and update the database via API.
         </p>
         
         <div className="mb-6 p-4 bg-gray-50 rounded-lg text-left">

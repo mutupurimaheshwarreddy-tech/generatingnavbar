@@ -1,5 +1,4 @@
-'use server';
-
+import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '@/lib/prisma';
@@ -26,8 +25,6 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<str
         if (error) return reject(error);
         if (!result) return reject(new Error("Upload failed"));
         
-        // e_trim removes empty transparent space around the newly cropped logo
-        // f_avif optimizes it automatically
         const optimizedUrl = result.secure_url.replace(
           '/upload/', 
           '/upload/e_trim/f_avif,q_auto/'
@@ -60,13 +57,11 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
     const $ = cheerio.load(html);
     let foundSrc = '';
 
-    // STRATEGY 1: 100% Accuracy via JSON-LD (Schema.org)
+    // STRATEGY 1: JSON-LD Schema
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
         const json = JSON.parse($(el).html() || '{}');
-        if (json.logo) {
-          foundSrc = typeof json.logo === 'string' ? json.logo : json.logo.url;
-        }
+        if (json.logo) foundSrc = typeof json.logo === 'string' ? json.logo : json.logo.url;
         if (json['@graph']) {
           const org = json['@graph'].find((item: any) => item['@type'] === 'Organization');
           if (org && org.logo) foundSrc = typeof org.logo === 'string' ? org.logo : org.logo.url;
@@ -93,7 +88,6 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
 
     if (!foundSrc) return null;
     
-    // Resolve Absolute URL
     if (foundSrc.startsWith('//')) return `https:${foundSrc}`;
     if (!foundSrc.startsWith('http')) return new URL(foundSrc, secureUrl).href;
 
@@ -103,7 +97,8 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
   }
 }
 
-export async function generateLogosAction() {
+// THIS IS THE REQUIRED EXPORT FOR NEXT.JS API ROUTES
+export async function POST(req: Request) {
   try {
     const websites = await prisma.websiteData.findMany({
       where: { logoStatus: "pending" },
@@ -112,12 +107,11 @@ export async function generateLogosAction() {
     });
 
     if (websites.length === 0) {
-      return { success: true, done: true, message: "All websites processed!" };
+      return NextResponse.json({ success: true, done: true, message: "All websites processed!" });
     }
 
     for (const site of websites) {
       try {
-        // Fallback safety to ensure valid URL object
         const safeUrl = site.Website.startsWith('http') ? site.Website : `https://${site.Website}`;
         const urlObj = new URL(safeUrl);
         const domain = urlObj.hostname.replace('www.', '');
@@ -148,17 +142,13 @@ export async function generateLogosAction() {
         const arrayBuffer = await imageResponse.arrayBuffer();
         let finalBuffer = Buffer.from(arrayBuffer);
 
-        // --- FREE AI BACKGROUND REMOVAL ---
-        // We only remove background if it's NOT the UI-Avatars text fallback
         if (!usedTextFallback) {
           try {
-            // Imgly requires a Blob
             const imageBlob = new Blob([finalBuffer], { type: 'image/png' }); 
             const transparentBlob = await removeBackground(imageBlob);
             finalBuffer = Buffer.from(await transparentBlob.arrayBuffer());
           } catch (bgError) {
             console.error(`Background removal failed for ${domain}, proceeding with original image.`);
-            // Falls back to keeping the original finalBuffer if the AI fails
           }
         }
 
@@ -174,7 +164,6 @@ export async function generateLogosAction() {
         });
 
       } catch (error) {
-        // THIS CATCH ensures a failed website doesn't crash the loop. It just marks it failed and moves to the next.
         await prisma.websiteData.update({
           where: { id: site.id },
           data: {
@@ -186,9 +175,9 @@ export async function generateLogosAction() {
     }
 
     const remaining = await prisma.websiteData.count({ where: { logoStatus: "pending" }});
-    return { success: true, done: false, remaining, message: `Batch complete.` };
+    return NextResponse.json({ success: true, done: false, remaining, message: `Batch complete.` });
 
   } catch (error: any) {
-    return { success: false, done: false, message: error.message };
+    return NextResponse.json({ success: false, done: false, message: error.message }, { status: 500 });
   }
 }
