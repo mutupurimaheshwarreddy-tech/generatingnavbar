@@ -1,3 +1,4 @@
+// src/actions/extractLogos.ts
 'use server';
 
 import * as cheerio from 'cheerio';
@@ -10,15 +11,8 @@ cloudinary.config({
   api_secret: 'a7MiQt_aMZfhuCe2891nUdgJDVs',
 });
 
-// Helper to extract a clean name for Text Logos (e.g., "islanddogspa.com" -> "islanddogspa")
-function getCleanName(websiteUrl: string): string {
-  try {
-    const hostname = new URL(websiteUrl).hostname;
-    return hostname.replace('www.', '').split('.')[0];
-  } catch {
-    return "Logo";
-  }
-}
+// Banned keywords to prevent scraping social media icons instead of logos
+const BANNED_KEYWORDS = ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'youtube', 'pinterest'];
 
 async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -27,18 +21,19 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<str
         public_id: publicId,
         folder: 'logos',
         overwrite: true,
-        resource_type: 'image',
-        format: 'png', // FORCES SVGs to become standard images
+        resource_type: 'auto', // Allows SVGs to be uploaded correctly
       },
       (error, result) => {
         if (error) return reject(error);
-        if (!result || !result.secure_url) return reject(new Error("Upload failed"));
-
-        // e_background_removal removes white space/backgrounds automatically
-        const secureUrl: string = result.secure_url;
-        const optimizedUrl = secureUrl.replace(
-          '/upload/',
-          '/upload/e_background_removal/f_png,q_auto/'
+        if (!result) return reject(new Error("Upload failed"));
+        
+        // Cloudinary Magic Transformations:
+        // 1. e_trim: Removes extra whitespace/padding around the logo
+        // 2. e_make_transparent:15,co_white: Removes white backgrounds making it a clean PNG style
+        // 3. f_avif,q_auto: Converts SVGs/JPEGs to highly optimized AVIF format
+        const optimizedUrl = result.secure_url.replace(
+          '/upload/', 
+          '/upload/e_trim/e_make_transparent:15,co_white/f_avif,q_auto/'
         );
         resolve(optimizedUrl);
       }
@@ -50,9 +45,10 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<str
 async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | null> {
   try {
     const secureUrl = websiteUrl.replace('http://', 'https://');
+    
+    // Strict 10-second timeout for the HTML fetch to avoid hanging on broken sites
     const controller = new AbortController();
-    // 60 second timeout as requested
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(secureUrl, {
       headers: {
@@ -71,29 +67,36 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
     const $ = cheerio.load(html);
     let foundSrc = '';
 
-    // Expanded selectors to catch islanddogspa.com and others
+    // Expanded selectors (Catches Island Dog Spa and Wix sites)
     const selectors = [
-      'img.logo_image', 'img[class*="logo" i]', 'img[id*="logo" i]', 
-      '.logo img', '#logo img', 'a[class*="logo" i] img',
-      'header img', '.navbar-brand img', '[data-testid*="logo" i]', 
-      'img[src*="logo" i]', 'img[alt*="logo" i]'
+      'img[class*="logo" i]', 'img[id*="logo" i]', 'a[class*="logo" i] img',
+      'div[class*="logo" i] img', 'img[src*="logo" i]', 'img[alt*="logo" i]',
+      '.navbar-brand img', 'header img', 'a[href="/"] img',
+      'wix-image img', 'img[data-src*="logo" i]', 'link[rel="image_src"]'
     ];
 
     for (const selector of selectors) {
-      const img = $(selector).first();
-      if (img.length > 0) {
-        let src = img.attr('src') || img.attr('data-src');
+      const el = $(selector).first();
+      if (el.length > 0) {
+        let src = el.attr('src') || el.attr('data-src') || el.attr('href');
+        
         if (src?.startsWith('/_next/image')) {
           const urlParam = new URL(src, 'http://dummy.com').searchParams.get('url');
           if (urlParam) src = urlParam;
         }
+
         if (src && !src.startsWith('data:')) {
+          const lowerSrc = src.toLowerCase();
+          // Skip if it's a social media icon
+          if (BANNED_KEYWORDS.some(keyword => lowerSrc.includes(keyword))) continue;
+          
           foundSrc = src;
           break; 
         }
       }
     }
 
+    // Fallbacks if selectors fail
     if (!foundSrc) {
       foundSrc = $('meta[property="og:image"]').attr('content') || 
                  $('link[rel="apple-touch-icon"]').attr('href') || 
@@ -101,60 +104,75 @@ async function extractLogoUrlFromWebsite(websiteUrl: string): Promise<string | n
     }
 
     if (!foundSrc) return null;
+    
+    // Clean up relative URLs
     if (foundSrc.startsWith('//')) return `https:${foundSrc}`;
     if (!foundSrc.startsWith('http')) return new URL(foundSrc, secureUrl).href;
 
     return foundSrc;
   } catch (err) {
-    return null; // Fails gracefully if site is dead or times out
+    return null; // Gracefully fail on broken websites
   }
 }
 
-export async function processLogoBatch() {
+export async function generateLogosAction() {
   try {
-    // 1. Process in small batches (3 at a time) to prevent 502 Bad Gateway Timeouts
-    const batchSize = 3;
+    // BATCHING: Only process 5 at a time to stay under Netlify's 30s limit
     const websites = await prisma.websiteData.findMany({
       where: { logoStatus: "pending" },
       orderBy: { row_number: 'asc' },
-      take: batchSize
+      take: 5 
     });
 
     if (websites.length === 0) {
-      return { success: true, done: true, message: "All logos extracted." };
+      return { success: true, done: true, message: "All websites processed!" };
     }
+
+    console.log(`Processing batch of ${websites.length} websites...`);
 
     for (const site of websites) {
       console.log(`Scraping: ${site.Website}`);
 
       try {
         const urlObj = new URL(site.Website);
-        const domain = urlObj.hostname.replace('www.', '').replace(/\./g, '_');
-        const cleanName = getCleanName(site.Website);
+        const domain = urlObj.hostname.replace('www.', '');
+        const cleanDomainForId = domain.replace(/\./g, '_');
 
-        // Try 1: Scrape directly
+        // 1. Try to scrape the real logo
         let finalDownloadUrl = await extractLogoUrlFromWebsite(site.Website);
+        let fallbackUsed = false;
 
-        // Try 2: Clearbit API Fallback
+        // 2. If scrape fails or site is broken, try Clearbit
         if (!finalDownloadUrl) {
-          finalDownloadUrl = `https://logo.clearbit.com/${urlObj.hostname}`;
+          finalDownloadUrl = `https://logo.clearbit.com/${domain}`;
+          fallbackUsed = true;
         }
 
-        let imageResponse = await fetch(finalDownloadUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-
-        // Try 3: Text Logo Generation (If site is dead, Wix JS blocked, or Clearbit fails)
-        if (!imageResponse.ok) {
-          finalDownloadUrl = `https://ui-avatars.com/api/?name=${cleanName}&background=random&color=fff&size=256&font-size=0.4&format=png`;
-          imageResponse = await fetch(finalDownloadUrl);
-        }
+        // 3. Download the image (with a 10s timeout)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        if (!imageResponse.ok) throw new Error('All image extraction methods failed');
+        let imageResponse = await fetch(finalDownloadUrl, { 
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        // 4. If Clearbit ALSO fails, generate a Text Logo using ui-avatars
+        if (!imageResponse.ok && fallbackUsed) {
+          const textLogoUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(domain)}&background=random&color=fff&size=512&font-size=0.4&format=png`;
+          imageResponse = await fetch(textLogoUrl);
+        }
+
+        if (!imageResponse.ok) throw new Error('All image download methods failed');
         
         const arrayBuffer = await imageResponse.arrayBuffer();
         const imageBuffer = Buffer.from(arrayBuffer);
 
-        const cloudinaryUrl = await uploadToCloudinary(imageBuffer, domain);
+        // 5. Upload to Cloudinary (Handles SVG rasterization and White BG removal)
+        const cloudinaryUrl = await uploadToCloudinary(imageBuffer, cleanDomainForId);
 
+        // 6. Update Database
         await prisma.websiteData.update({
           where: { id: site.id },
           data: {
@@ -177,11 +195,8 @@ export async function processLogoBatch() {
       }
     }
 
-    const remainingCount = await prisma.websiteData.count({
-      where: { logoStatus: "pending" }
-    });
-
-    return { success: true, done: false, remaining: remainingCount };
+    const remaining = await prisma.websiteData.count({ where: { logoStatus: "pending" }});
+    return { success: true, done: false, remaining, message: `Batch complete. ${remaining} left.` };
 
   } catch (error: any) {
     console.error("Global Action Error:", error);
